@@ -1,4 +1,4 @@
-🏦 HamkorBank API Integration Backend (Django REST Framework)
+ 🏦 HamkorBank API Integration Backend (Django REST Framework)
 
 Ushbu loyiha Hamkorbank to‘lov tizimlari bilan integratsiya qilish uchun mo‘ljallangan professional backend skeletonidir.
 Loyiha to‘lovlar, balanslar, invoice (payment link) yaratish, va bankdan keladigan webhook callback’larni boshqarish imkonini beradi.

@@ -1,137 +1,197 @@
-# Hamkorbank-API
-🏦 Hamkorbank API Integration — Django/DRF Backend
+🏦 HamkorBank API Integration Backend (Django REST Framework)
 
-Ushbu loyiha Hamkorbank API integratsiyasi uchun mo‘ljallangan backend skeleton.
-Tizim foydalanuvchilarga to‘lov yaratish, balans tekshirish, o‘tkazmalar ko‘rish, invoice yaratish kabi xizmatlarni taqdim etadi.
+Ushbu loyiha Hamkorbank to‘lov tizimlari bilan integratsiya qilish uchun mo‘ljallangan professional backend skeletonidir.
+Loyiha to‘lovlar, balanslar, invoice (payment link) yaratish, va bankdan keladigan webhook callback’larni boshqarish imkonini beradi.
+
+Barcha ma’lumotlar JSON API orqali qaytariladi.
 
 📦 Apps Strukturası
-payments/        — To‘lovlar yaratish va boshqarish
-accounts/        — Foydalanuvchi hisoblari va balans
-invoices/        — Invoice / payment link yaratish
-webhook/         — Bankdan keladigan callbacklarni qabul qilish
+payments/       — Payment yaratish, status boshqarish
+accounts/       — Foydalanuvchi accountlari & balanslar
+invoices/       — Invoice/payment link yaratish
+webhook/        — Hamkorbank callbacklarini qabul qilish
 
-⚙️ Models
-Payment
-Field	Type	Tavsif
-id	AutoField	Primary Key
-from_account	CharField	Jo‘natuvchi account raqami
-to_account	CharField	Qabul qiluvchi account raqami
-amount	DecimalField	To‘lov summasi
-currency	CharField	“UZS” yoki “USD”
-description	TextField	To‘lov izohi
-status	CharField	pending / success / failed
-created_at	DateTimeField	Auto-created
-updated_at	DateTimeField	Auto-updated
-Account
-Field	Type	Tavsif
-id	AutoField	Primary Key
-account_number	CharField	Account raqami
-balance	DecimalField	Hisob balansi
-created_at	DateTimeField	Auto-created
-updated_at	DateTimeField	Auto-updated
-Invoice
-Field	Type	Tavsif
-id	AutoField	Primary Key
-account	FK → Account	Invoice tegishli account
-amount	DecimalField	Summasi
-currency	CharField	“UZS” yoki “USD”
-description	TextField	Izoh
-status	CharField	pending / success / failed
-created_at	DateTimeField	Auto-created
-WebhookLog
-Field	Type	Tavsif
-id	AutoField	Primary Key
-payload	JSONField	Bankdan kelgan ma’lumot
-received_at	DateTimeField	Auto-created
-processed	BooleanField	Callback qayta ishlanganligi
-🌐 API Endpoints
-Payments
-
-POST /api/payments/ — yangi to‘lov yaratish
-
-{
-  "from_account": "86001234567890",
-  "to_account": "86009876543210",
-  "amount": 50000,
-  "currency": "UZS",
-  "description": "Invoice #123"
-}
+🧩 Models (to‘liq aniqlangan)
+payments.models.Payment
+id              AutoField(pk)
+from_account    FK → Account
+to_account      FK → Account
+amount          DecimalField(10,2)
+currency        CharField(3)   choices=['UZS','USD']
+description     CharField(255)
+status          CharField(choices=['pending','success','failed'])
+created_at      DateTimeField(auto_now_add=True)
+updated_at      DateTimeField(auto_now=True)
 
 
-Response
-
-{
-  "id": "PAY-20251127-001",
-  "status": "pending",
-  "amount": 50000,
-  "currency": "UZS",
-  "created_at": "2025-11-27T20:00:00Z"
-}
-
-
-GET /api/payments/{id}/ — to‘lov tafsiloti
-
-Accounts
-
-GET /api/accounts/{account_id}/balance/ — balans
-
-GET /api/accounts/{account_id}/transactions/ — o‘tkazmalar tarixini olish
-
-Invoices
-
-POST /api/invoices/ — invoice yaratish
-
-{
-  "account_id": "86001234567890",
-  "amount": 75000,
-  "currency": "UZS",
-  "description": "Invoice #456"
-}
-
-Webhook
-
-POST /api/webhook/hamkorbank/ — bank callback qabul qilish
-
-{
-  "payment_id": "PAY-20251127-001",
-  "status": "success",
-  "processed_at": "2025-11-27T20:05:00Z"
-}
-
-🔒 Business Rules
-
-status: pending / success / failed
+Business constraints:
 
 amount > 0
 
-currency: “UZS” yoki “USD”
+from_account.balance >= amount
 
-Webhook orqali status update qilinadi
+currency: only UZS or USD
 
-HTTPS majburiy, API key / token bilan autentifikatsiya
+accounts.models.Account
+id              AutoField(pk)
+account_number  CharField(20, unique)
+balance         DecimalField(12,2)
+created_at      DateTimeField(auto_now_add=True)
+updated_at      DateTimeField(auto_now=True)
 
-Xatoliklar JSON formatda qaytariladi
+invoices.models.Invoice
+id              AutoField
+account         FK → Account
+amount          DecimalField(10,2)
+currency        CharField(3)
+description     CharField(255)
+status          CharField(choices=['pending','paid','expired'], default='pending')
+created_at      DateTimeField(auto_now_add=True)
 
-Error misol
+webhook.models.WebhookLog
+id              AutoField
+payload         JSONField
+processed       BooleanField(default=False)
+received_at     DateTimeField(auto_now_add=True)
 
+⚙️ Business Rules
+1. To‘lov statuslari
+
+pending — yaratilgan
+
+success — bank tasdiqlagan
+
+failed — rad etilgan
+
+2. Validatsiya
+
+amount 0 dan katta bo‘lishi shart
+
+currency faqat UZS / USD
+
+from_account.balance >= amount
+
+3. Webhook
+
+Bankdan kelgan transaction_id bo‘yicha:
+
+Payment status update qilinadi
+
+Account balanslari o‘zgartiriladi
+
+WebhookLog saqlanadi
+
+4. API Security
+
+HTTPS majburiy
+
+Autentifikatsiya: API-Key yoki Bearer Token
+
+5. Xatoliklar formati
 {
-  "error": "Invalid account number",
-  "code": 400
+  "error": "Invalid currency",
+  "details": { ... }
 }
 
-🛠 Tech Stack & Features
+🌐 Full API Endpoints (base: /api/)
+💳 Payments
+POST    /api/payments/                  → yangi to‘lov yaratish
+GET     /api/payments/{id}/             → to‘lov detali
 
-Django + Django REST Framework
+🧾 Invoices
+POST    /api/invoices/                  → invoice yaratish
+GET     /api/invoices/{id}/             → invoice detali
 
-Serializerlar bilan validation
+🧮 Accounts
+GET     /api/accounts/{id}/balance/     → balans
+GET     /api/accounts/{id}/transactions/ → o‘tkazmalar listi
 
-Views: APIView yoki ViewSet
+📩 Webhook
+POST    /api/webhook/hamkorbank/        → bank callback qabul qilish
 
-URL routing DRF Routers bilan
+📘 JSON Misollar
+1) Payment yaratish
 
-Swagger / OpenAPI dokumentatsiya
+POST /api/payments/
 
-📘 Yakuniy Izoh
+{
+  "from_account": 2,
+  "to_account": 5,
+  "amount": 125000,
+  "currency": "UZS",
+  "description": "Premium to'lov"
+}
 
-Ushbu README Hamkorbank API backend skeleton sifatida xizmat qiladi.
-Keyingi bosqichda DRF kodlari bilan models, serializers, views, urls va Swagger/OpenAPI tayyorlanadi, to‘lovlar va webhooklar test qilinadi.
+
+Response:
+
+{
+  "id": 91,
+  "status": "pending",
+  "amount": 125000,
+  "currency": "UZS"
+}
+
+2) Account balans
+
+GET /api/accounts/2/balance/
+
+{
+  "account_id": 2,
+  "balance": 4300000,
+  "currency": "UZS"
+}
+
+3) Invoice yaratish
+
+POST /api/invoices/
+
+{
+  "account": 5,
+  "amount": 99000,
+  "currency": "UZS",
+  "description": "Monthly subscription"
+}
+
+
+Response:
+
+{
+  "id": 301,
+  "status": "pending",
+  "payment_link": "https://pay.hamkorbank.uz/invoice/301"
+}
+
+4) Webhook callback (bankdan keladi)
+
+POST /api/webhook/hamkorbank/
+
+{
+  "transaction_id": 91,
+  "status": "success",
+  "amount": 125000,
+  "currency": "UZS"
+}
+
+
+Response:
+
+{
+  "ok": true,
+  "updated_payment_id": 91
+}
+
+🎯 Yakuniy eslatma
+
+Bu README kompaniyalarda beriladigan haqiqiy backend test-vazifa formatiga 100% mos.
+
+Agar xohlasang, shu README asosida:
+
+✅ Django project skeleton
+✅ Models
+✅ Serializers
+✅ Views
+✅ URLs
+✅ Swagger konfiguratsiya
+
+hammasini yozib beraman.
